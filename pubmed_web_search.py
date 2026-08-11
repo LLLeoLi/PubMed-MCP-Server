@@ -45,8 +45,7 @@ def search_pubmed(search_url):
             print("No results found.")
             return []
     else:
-        print(f"Error: Unable to fetch data (status code: {response.status_code})")
-        return []
+        raise RuntimeError(f"PubMed esearch failed: HTTP {response.status_code}")
 
 def get_pubmed_metadata(pmid):
     """使用 PubMed API 通过 PMID 获取文章的详细元数据"""
@@ -85,11 +84,12 @@ def get_pubmed_metadata(pmid):
                 "Abstract": abstract
             }
         else:
+            # HTTP 200 but PubMed has no article data for this PMID: a genuine
+            # domain result (unknown/invalid PMID), not an error.
             print(f"No article data found for PMID: {pmid}")
             return None
     else:
-        print(f"Error: Unable to fetch metadata (status code: {response.status_code})")
-        return None
+        raise RuntimeError(f"PubMed efetch failed for PMID {pmid}: HTTP {response.status_code}")
 
 def download_full_text_pdf(pmid):
     """尝试下载全文 PDF 或提供文章链接"""
@@ -103,8 +103,7 @@ def download_full_text_pdf(pmid):
     response = requests.get(efetch_url, headers=headers)
     
     if response.status_code != 200:
-        print(f"Error: Unable to fetch article data (status code: {response.status_code})")
-        return f"Error: Unable to fetch article data (status code: {response.status_code})"
+        raise RuntimeError(f"PubMed efetch failed for PMID {pmid}: HTTP {response.status_code}")
     
     root = ET.fromstring(response.content)
     pmc_id = root.find(".//ArticleId[@IdType='pmc']")
@@ -122,9 +121,9 @@ def download_full_text_pdf(pmid):
     pmc_response = requests.get(pmc_url, headers=headers)
     
     if pmc_response.status_code != 200:
-        print(f"Error: Unable to access PMC article page (status code: {pmc_response.status_code})")
-        print(f"You can check the article availability at: {pmc_url}")
-        return f"Error: Unable to access PMC article page (status code: {pmc_response.status_code})" + "\n" + f"You can check the article availability at: {pmc_url}"f"You can check the article availability at: {pmc_url}"
+        raise RuntimeError(
+            f"Unable to access PMC article page (HTTP {pmc_response.status_code}): {pmc_url}"
+        )
     
     if "This article is available under a" not in pmc_response.text:
         print(f"The article doesn't seem to be fully open access.")
@@ -136,9 +135,10 @@ def download_full_text_pdf(pmid):
     pdf_response = requests.get(pdf_url, headers=headers)
     
     if pdf_response.status_code != 200:
-        print(f"Error: Unable to download PDF (status code: {pdf_response.status_code})")
-        print(f"You can try accessing the article directly at: {pmc_url}")
-        return f"Error: Unable to download PDF (status code: {pdf_response.status_code})" + "\n" + f"You can try accessing the article directly at: {pmc_url}"
+        raise RuntimeError(
+            f"Unable to download PDF (HTTP {pdf_response.status_code}); "
+            f"article page: {pmc_url}"
+        )
     
     # 保存PDF文件
     filename = f"PMID_{pmid}_PMC_{pmc_id}.pdf"

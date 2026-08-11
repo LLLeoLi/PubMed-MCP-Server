@@ -23,11 +23,8 @@ async def search_pubmed_key_words(key_words: str, num_results: int = 10) -> List
     Returns:
         List of dictionaries containing article information
     """
-    try:
-        results = await asyncio.to_thread(search_key_words, key_words, num_results)
-        return results
-    except Exception as e:
-        return [{"error": f"An error occurred while searching: {str(e)}"}]
+    results = await asyncio.to_thread(search_key_words, key_words, num_results)
+    return results
 
 @mcp.tool()
 async def search_pubmed_advanced(
@@ -55,14 +52,11 @@ async def search_pubmed_advanced(
     Returns:
         List of dictionaries containing article information
     """
-    try:
-        results = await asyncio.to_thread(
-            search_advanced,
-            term, title, author, journal, start_date, end_date, num_results
-        )
-        return results
-    except Exception as e:
-        return [{"error": f"An error occurred while performing advanced search: {str(e)}"}]
+    results = await asyncio.to_thread(
+        search_advanced,
+        term, title, author, journal, start_date, end_date, num_results
+    )
+    return results
 
 @mcp.tool()
 async def get_pubmed_article_metadata(pmid: Union[str, int]) -> Dict[str, Any]:
@@ -76,12 +70,11 @@ async def get_pubmed_article_metadata(pmid: Union[str, int]) -> Dict[str, Any]:
     Returns:
         Dictionary containing article metadata
     """
-    try:
-        pmid_str = str(pmid)
-        metadata = await asyncio.to_thread(get_pubmed_metadata, pmid_str)
-        return metadata if metadata else {"error": f"No metadata found for PMID: {pmid_str}"}
-    except Exception as e:
-        return {"error": f"An error occurred while fetching metadata: {str(e)}"}
+    pmid_str = str(pmid)
+    metadata = await asyncio.to_thread(get_pubmed_metadata, pmid_str)
+    # metadata is None only when PubMed returned HTTP 200 but has no article
+    # for this PMID — a genuine domain result, not an error (HTTP failures raise).
+    return metadata if metadata else {"message": f"No article found in PubMed for PMID: {pmid_str}"}
 
 @mcp.tool()
 async def download_pubmed_pdf(pmid: Union[str, int]) -> str:
@@ -95,12 +88,9 @@ async def download_pubmed_pdf(pmid: Union[str, int]) -> str:
     Returns:
         String indicating the result of the download attempt
     """
-    try:
-        pmid_str = str(pmid)
-        result = await asyncio.to_thread(download_full_text_pdf, pmid_str)
-        return result
-    except Exception as e:
-        return f"An error occurred while attempting to download the PDF: {str(e)}"
+    pmid_str = str(pmid)
+    result = await asyncio.to_thread(download_full_text_pdf, pmid_str)
+    return result
 
 @mcp.prompt()
 async def deep_paper_analysis(pmid: Union[str, int]) -> Dict[str, str]:
@@ -114,21 +104,18 @@ async def deep_paper_analysis(pmid: Union[str, int]) -> Dict[str, str]:
     Returns:
         Dictionary containing the comprehensive analysis structure
     """
-    try:
-        pmid_str = str(pmid)
-        metadata = await asyncio.to_thread(get_pubmed_metadata, pmid_str)
-        if not metadata:
-            return {"error": f"No metadata found for PMID: {pmid_str}"}
-            
-        # 使用导入的 deep_paper_analysis 函数生成分析提示
-        # 为避免递归调用，我们需要明确指定导入的函数
-        from pubmed_web_search import deep_paper_analysis as web_deep_paper_analysis
-        analysis_prompt = await asyncio.to_thread(web_deep_paper_analysis, metadata)
-        
-        # 返回包含分析提示的字典
-        return {"analysis_prompt": analysis_prompt}
-    except Exception as e:
-        return {"error": f"An error occurred while performing the deep paper analysis: {str(e)}"}
+    pmid_str = str(pmid)
+    metadata = await asyncio.to_thread(get_pubmed_metadata, pmid_str)
+    if not metadata:
+        return {"message": f"No article found in PubMed for PMID: {pmid_str}"}
+
+    # 使用导入的 deep_paper_analysis 函数生成分析提示
+    # 为避免递归调用，我们需要明确指定导入的函数
+    from pubmed_web_search import deep_paper_analysis as web_deep_paper_analysis
+    analysis_prompt = await asyncio.to_thread(web_deep_paper_analysis, metadata)
+
+    # 返回包含分析提示的字典
+    return {"analysis_prompt": analysis_prompt}
 
 if __name__ == "__main__":
     logging.info("Starting PubMed MCP server")
